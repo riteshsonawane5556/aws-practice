@@ -33,16 +33,7 @@ app = FastAPI(
     title="AWS S3 Image Service",
     description=(
         "A learning project demonstrating AWS S3 image upload and retrieval "
-        "with FastAPI + SQLAlchemy + Alembic.\n\n"
-        "**Key concepts covered:**\n"
-        "- boto3 S3 client setup with IAM credentials\n"
-        "- Object keys and virtual prefixes\n"
-        "- Uploading bytes with `put_object` and ContentType metadata\n"
-        "- Presigned URLs for time-limited private access\n"
-        "- Paginated object listing with `list_objects_v2`\n"
-        "- Structured error handling with `ClientError`"
     ),
-    version="1.0.0",
     lifespan=lifespan,
 )
 
@@ -51,5 +42,4 @@ app.include_router(images.router)
 
 @app.get("/health", tags=["Health"])
 def health_check():
-    """Simple liveness probe — returns 200 if the app is running."""
     return {"status": "ok"}

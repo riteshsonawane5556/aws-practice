@@ -3,7 +3,6 @@ from pydantic import BaseModel
 
 
 class ImageUploadResponse(BaseModel):
-    """Returned after a successful upload. Includes a fresh presigned URL."""
     id: int
     original_filename: str
     s3_key: str
@@ -16,7 +15,6 @@ class ImageUploadResponse(BaseModel):
 
 
 class ImageMetadata(BaseModel):
-    """Used in list responses. No presigned URL — generating one per item is slow."""
     id: int
     original_filename: str
     s3_key: str
@@ -28,7 +26,6 @@ class ImageMetadata(BaseModel):
 
 
 class ImageDetailResponse(ImageMetadata):
-    """Single-image response. Adds a fresh presigned URL to the base metadata."""
     presigned_url: str
 
 

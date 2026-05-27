@@ -14,6 +14,7 @@ Demonstrates the key S3 concepts you will encounter in real projects:
 import uuid
 
 import boto3
+from botocore.config import Config
 from botocore.exceptions import ClientError, NoCredentialsError
 from fastapi import HTTPException
 
@@ -30,13 +31,26 @@ class S3Service:
 
     def __init__(self) -> None:
         # Low-level S3 client with explicit credentials from config.
-        # In production on EC2/Lambda, you would omit the key/secret and rely
-        # on IAM roles attached to the instance — boto3 picks them up automatically.
+        # In production on EC2/Lambda you would omit the key/secret and rely
+        # on IAM roles — boto3 picks them up automatically.
+        #
+        # Two settings are required for non-us-east-1 buckets:
+        #
+        # 1. endpoint_url — forces boto3 to use the REGIONAL endpoint
+        #    (s3.ap-south-1.amazonaws.com) rather than the global one
+        #    (s3.amazonaws.com). Presigned URLs bake the hostname into the
+        #    URL. Without this, boto3 puts s3.amazonaws.com in the URL but
+        #    signs with ap-south-1 in the credential scope — S3 sees the
+        #    mismatch and returns SignatureDoesNotMatch immediately.
+        #
+        # 2. signature_version='s3v4' — required by all non-us-east-1 regions.
+        #    SigV2 does not support regional endpoints.
         self.client = boto3.client(
             "s3",
             region_name=settings.aws_region,
             aws_access_key_id=settings.aws_access_key_id,
             aws_secret_access_key=settings.aws_secret_access_key,
+            
         )
         self.bucket_name = settings.s3_bucket_name
         self.presigned_expiry = settings.presigned_url_expiry
