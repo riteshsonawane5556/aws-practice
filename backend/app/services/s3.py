@@ -82,7 +82,70 @@ class S3Service:
         return f"images/{unique_id}_{safe_name}"
 
     # ------------------------------------------------------------------
-    # Upload
+    # Presigned PUT URL  (frontend-upload flow)
+    # ------------------------------------------------------------------
+
+    UPLOAD_URL_EXPIRY = 300  # 5 minutes — enough time for the frontend to PUT the file
+
+    def generate_presigned_put_url(self, s3_key: str, content_type: str) -> str:
+        """
+        Generate a presigned URL that allows the *frontend* to PUT an object
+        directly into S3, bypassing the backend entirely.
+
+        How the frontend-upload flow works:
+          1. Frontend calls POST /images/generate-upload-url with filename,
+             content_type, and file_size.
+          2. Backend calls this method and returns the URL + s3_key.
+          3. Frontend does:
+               fetch(upload_url, {
+                 method: 'PUT',
+                 body: file,                          // raw File object
+                 headers: { 'Content-Type': file.type }
+               })
+          4. S3 responds 200 OK — the object is now in the bucket.
+          5. Frontend calls POST /images/confirm-upload with s3_key + metadata.
+          6. Backend runs head_object to verify the object exists, then saves
+             the metadata record to SQLite.
+
+        Why PUT and not POST (presigned_post)?
+          presigned_url("put_object") is simpler — a single URL, no extra
+          form fields. The frontend just sets the Content-Type header and
+          sends the raw bytes as the request body.
+
+          generate_presigned_post() produces a URL + a dict of form fields
+          that the frontend must merge into FormData. More complex to use,
+          but supports more upload constraints (e.g. key prefix policies).
+
+        Why include ContentType in Params?
+          ContentType is signed into the URL. If the frontend sends a
+          different Content-Type header than what was signed here, S3 will
+          reject the upload with SignatureDoesNotMatch. The frontend MUST
+          send: Content-Type: <same value as content_type arg>.
+
+        Why NOT include the file in this method?
+          The whole point is that the file never reaches the backend.
+          Only the metadata (filename, type, size) is sent to the backend
+          to generate the URL. The actual bytes go directly frontend → S3.
+        """
+        try:
+            url = self.client.generate_presigned_url(
+                "put_object",
+                Params={
+                    "Bucket": self.bucket_name,
+                    "Key": s3_key,
+                    "ContentType": content_type,
+                },
+                ExpiresIn=self.UPLOAD_URL_EXPIRY,
+            )
+            return url
+        except ClientError as exc:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to generate presigned upload URL: {exc}",
+            )
+
+    # ------------------------------------------------------------------
+    # Server-side upload  (kept for reference / backend-only use cases)
     # ------------------------------------------------------------------
 
     def upload_file(self, file_data: bytes, s3_key: str, content_type: str) -> str:
